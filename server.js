@@ -3,6 +3,8 @@ import { db } from './src/db/index.js';
 import { usuariosTable } from './src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import { criptografarSenha, verificarSenha } from './utils/auth.js';
+// 1. Importa os schemas de validação criados com o Zod
+import { registerSchema, loginSchema } from './src/schemas/auth.schema.js';
 
 const app = express();
 
@@ -11,8 +13,19 @@ app.use(express.json());
 // Rota de Cadastro (POST)
 app.post('/register', async (req, res) => {
   try {
-    // 1. O cidadão entrega um papel com os dados dele:
-    const { nome, email, senha } = req.body;
+    // 0. O Zod faz a barreira inicial: verifica se o papel preenchido pelo cidadão está no formato correto (nome válido, email real, senha com tamanho mínimo)
+    const validacao = registerSchema.safeParse(req.body);
+
+    if (!validacao.success) {
+      // Se o papel estiver rasurado ou fora das regras, o segurança barra na hora com os detalhes do erro
+      return res.status(400).json({
+        sucesso: false,
+        erros: validacao.error.format(),
+      });
+    }
+
+    // 1. O cidadão entrega um papel com os dados dele (já validados pelo Zod):
+    const { nome, email, senha } = validacao.data;
 
     // 2. Antes de guardar a senha, passamos ela pelo triturador de segurança (Argon2):
     // (Para que ninguém, nem mesmo quem cuida do banco, saiba qual é a sua senha real)
@@ -37,8 +50,19 @@ app.post('/register', async (req, res) => {
 // Rota de Login (POST)
 app.post('/login', async (req, res) => {
   try {
+    // 0. O Zod confere se o formato do email e da senha informados na entrada fazem o menor sentido estrutural
+    const validacao = loginSchema.safeParse(req.body);
+
+    if (!validacao.success) {
+      // Se faltar informação ou o email estiver mal formatado, barra imediatamente
+      return res.status(400).json({
+        sucesso: false,
+        erros: validacao.error.format(),
+      });
+    }
+
     // 1. A pessoa digita o email e a senha na maquininha da catraca:
-    const { email, senha } = req.body;
+    const { email, senha } = validacao.data;
 
     // 2. O segurança olha no fichário para ver se acha uma ficha com aquele email:
     const [usuario] = await db.select().from(usuariosTable).where(eq(usuariosTable.email, email));

@@ -1,3 +1,27 @@
+// ==========================================
+// PARTE 1: REGRAS DO ARQUIVO .gitignore
+// ==========================================
+
+// Ignora a pasta 'node_modules/', impedindo que o Git envie os milhares de pacotes instalados para o GitHub (o npm recria isso na máquina de quem baixar o projeto).
 node_modules/
+
+// Ignora o arquivo '.env', garantindo que suas senhas e credenciais reais do banco de dados nunca vazem para o repositório público.
 .env
-/generated/prisma
+
+// Ignora a pasta oculta '.agents/', usada localmente por ferramentas e agentes de IA no seu ambiente de desenvolvimento.
+.agents/
+
+// Ignora a pasta oculta '.claude/', usada pelo editor/ambiente do Claude localmente.
+.claude/
+
+// Ignora a pasta oculta '.cursor/', usada pelo editor Cursor localmente.
+.cursor/
+
+// Ignora a pasta oculta '.devin/', usada por ferramentas de desenvolvimento assistido localmente.
+.devin/
+
+// Ignora a pasta oculta '.windsurf/', usada pelo editor Windsurf localmente.
+.windsurf/
+
+// Ignora o arquivo 'skills-lock.json', que controla dependências de skills locais do seu ambiente de IA.
+skills-lock.json
