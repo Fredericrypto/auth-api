@@ -1,9 +1,10 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import { criptografarSenha, verificarSenha } from './auth.js';
+import { db } from './src/db/index.js';
+import { usuariosTable } from './src/db/schema.js';
+import { eq } from 'drizzle-orm';
+import { criptografarSenha, verificarSenha } from './utils/auth.js';
 
 const app = express();
-const prisma = new PrismaClient();
 
 app.use(express.json());
 
@@ -18,8 +19,10 @@ app.post('/register', async (req, res) => {
     const senhaHash = await criptografarSenha(senha);
 
     // 3. O segurança pega o nome, o email e a senha triturada e guarda no fichário (Banco de Dados):
-    const usuario = await prisma.usuario.create({
-      data: { nome, email, senha: senhaHash },
+    await db.insert(usuariosTable).values({
+      nome,
+      email,
+      senha: senhaHash,
     });
 
     // 4. O segurança sorri e diz: "Pronto, cadastrado com sucesso!"
@@ -38,7 +41,7 @@ app.post('/login', async (req, res) => {
     const { email, senha } = req.body;
 
     // 2. O segurança olha no fichário para ver se acha uma ficha com aquele email:
-    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    const [usuario] = await db.select().from(usuariosTable).where(eq(usuariosTable.email, email));
     
     // Se o email não existir no fichário, o segurança bloqueia a entrada:
     if (!usuario) {
