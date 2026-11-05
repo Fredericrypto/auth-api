@@ -5,6 +5,9 @@ import { eq } from 'drizzle-orm';
 import { criptografarSenha, verificarSenha } from './utils/auth.js';
 // 1. Importa os schemas de validação criados com o Zod
 import { registerSchema, loginSchema } from './src/schemas/auth.schema.js';
+// 🌟 NOVIDADE: Importa a função geradora de token e o middleware de segurança JWT
+import { gerarToken } from './src/utils/jwt.js';
+import { authMiddleware } from './src/middlewares/auth.middleware.js';
 
 const app = express();
 
@@ -81,12 +84,28 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
     }
 
-    // 4. Se a senha estiver certa, a catraca dá o sinal verde: "Login autorizado!"
-    return res.status(200).json({ sucesso: true, mensagem: 'Login autorizado!' });
+    // 🌟 NOVIDADE: Se a senha estiver certa, geramos o crachá digital (token JWT) para o usuário
+    const token = gerarToken(usuario);
+
+    // 4. A catraca dá o sinal verde e entrega o token de acesso: "Login autorizado!"
+    return res.status(200).json({ 
+      sucesso: true, 
+      mensagem: 'Login autorizado!',
+      token // O cliente guarda esse token para as próximas requisições
+    });
 
   } catch (error) {
     return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
   }
+});
+
+// 🌟 NOVIDADE: Rota protegida por Middleware que exige o crachá (token JWT) válido
+app.get('/perfil', authMiddleware, (req, res) => {
+  return res.status(200).json({
+    sucesso: true,
+    mensagem: 'Você acessou uma rota protegida com sucesso!',
+    usuarioLogado: req.usuario // Dados descriptografados diretamente do token pelo middleware
+  });
 });
 
 app.listen(3000, () => {
