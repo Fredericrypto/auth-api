@@ -1,15 +1,24 @@
 import express from 'express';
+// Importa o Helmet e CORS
+import helmet from 'helmet';
+import cors from 'cors';
 import { db } from './src/db/index.js';
 import { usuariosTable } from './src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import { criptografarSenha, verificarSenha } from './utils/auth.js';
-// 1. Importa os schemas de validação criados com o Zod
+// Importa os schemas de validação criados com o Zod
 import { registerSchema, loginSchema } from './src/schemas/auth.schema.js';
-// 🌟 NOVIDADE: Importa a função geradora de token e o middleware de segurança JWT
+// Importa a função geradora de token e o middleware de segurança JWT
 import { gerarToken } from './src/utils/jwt.js';
 import { authMiddleware } from './src/middlewares/auth.middleware.js';
 
 const app = express();
+
+// Aplicando o Helmet para blindar os headers de segurança HTTP
+app.use(helmet());
+
+// Aplicando o CORS (por padrão libera requisições de de qualquer origem, ideal para desenvolvimento)
+app.use(cors());
 
 app.use(express.json());
 
