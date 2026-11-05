@@ -18,7 +18,7 @@ const app = express();
 app.use(helmet());
 
 // Aplicando o CORS (por padrão libera requisições de de qualquer origem, ideal para desenvolvimento)
-app.use(cors());
+// app.use(cors());
 
 app.use(express.json());
 
@@ -93,7 +93,7 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
     }
 
-    // 🌟 NOVIDADE: Se a senha estiver certa, geramos o crachá digital (token JWT) para o usuário
+    // Se a senha estiver certa, geramos o crachá digital (token JWT) para o usuário
     const token = gerarToken(usuario);
 
     // 4. A catraca dá o sinal verde e entrega o token de acesso: "Login autorizado!"
@@ -108,7 +108,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// 🌟 NOVIDADE: Rota protegida por Middleware que exige o crachá (token JWT) válido
+// Rota protegida por Middleware que exige o crachá (token JWT) válido
 app.get('/perfil', authMiddleware, (req, res) => {
   return res.status(200).json({
     sucesso: true,
@@ -120,3 +120,20 @@ app.get('/perfil', authMiddleware, (req, res) => {
 app.listen(3000, () => {
   console.log('Servidor rodando na porta 3000 🚀');
 });
+
+// CONFIGURAÇÃO SEGURA DE CORS
+const origensPermitidas = ['http://localhost:3000', 'http://localhost:5173']; // Adicione outras portas de front-end se precisar depois
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permite requisições sem 'origin' (como chamadas via curl, Postman ou aplicativos mobile)
+    if (!origin) return callback(null, true);
+
+    if (origensPermitidas.indexOf(origin) !== -1) {
+      callback(null, true); // Origem permitida
+    } else {
+      callback(new Error('Bloqueado pela política de CORS')); // Bloqueia origens desconhecidas/maliciosas
+    }
+  },
+  credentials: true, // Permite o envio de cookies/headers de autorização se necessário futuramente
+}));
