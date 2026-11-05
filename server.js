@@ -11,8 +11,37 @@ import { registerSchema, loginSchema } from './src/schemas/auth.schema.js';
 // Importa a função geradora de token e o middleware de segurança JWT
 import { gerarToken } from './src/utils/jwt.js';
 import { authMiddleware } from './src/middlewares/auth.middleware.js';
+// Importa a função Rate Limit para requisições vindas do mesmo IP (Brute Force)
+import { rateLimit } from 'express-rate-limit';
+
+
+// Regra 1: Limite rígido para rotas de autenticação (Login / Registro)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // Janela de 15 minutos
+  max: 15, // Limite de 15 tentativas por IP dentro da janela
+  message: {
+    erro: "Muitas tentativas de acesso a partir desse IP. Tente novamente após 15 minutos."
+  },
+  standardHeaders: true, // Retorna informações de limite no headers (RateLimit-*)
+  legacyHeaders: false, // Desativa os headers antigos (X-RateLimit-*)
+});
+
+// Regra 2: Limite geral para o restante da API (Proteção contra abuso / DoS leve)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Limite de 100 requisições por IP na API geral
+  message: {
+    erro: "Muitas requisições feitas a partir desse IP, por favor tente novamente mais tarde."
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 const app = express();
+
+// Aplicando o limitador geral em todas as rotas da API
+app.use(globalLimiter);
 
 // Aplicando o Helmet para blindar os headers de segurança HTTP
 app.use(helmet());
@@ -22,8 +51,8 @@ app.use(helmet());
 
 app.use(express.json());
 
-// Rota de Cadastro (POST)
-app.post('/register', async (req, res) => {
+// Rota de Cadastro (POST) protegida contra ataques de força bruta
+app.post('/register', authLimiter, async (req, res) => {
   try {
     // 0. O Zod faz a barreira inicial: verifica se o papel preenchido pelo cidadão está no formato correto (nome válido, email real, senha com tamanho mínimo)
     const validacao = registerSchema.safeParse(req.body);
@@ -59,8 +88,8 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Rota de Login (POST)
-app.post('/login', async (req, res) => {
+// Rota de Login (POST) protegida contra ataques de força bruta
+app.post('/login', authLimiter, async (req, res) => {
   try {
     // 0. O Zod confere se o formato do email e da senha informados na entrada fazem o menor sentido estrutural
     const validacao = loginSchema.safeParse(req.body);
