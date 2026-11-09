@@ -1,15 +1,15 @@
-# Auth API <img src="https://api.iconify.design/lucide:shield-check.svg?color=%23ef4444&width=24" width="24" height="24" align="absmiddle" />
+# Auth API 🔒
 
 A secure, production-ready authentication microservice built with **Node.js, Express, Drizzle ORM, and MySQL**, focusing on robust backend security best practices (AppSec) and modular architecture.
 
 ---
 
-## <img src="https://api.iconify.design/lucide:cpu.svg?color=%233b82f6&width=20" width="20" height="20" align="absmiddle" /> Tech Stack & Core Libraries
+## 🚀 Tech Stack & Core Libraries
 
 - **Runtime:** Node.js
 - **Framework:** Express.js
 - **Database & ORM:** MySQL & Drizzle ORM
-- **Validation:** Zod *(Strict schema validation for incoming payloads)*
+- **Validation:** Zod (Strict schema validation for incoming payloads)
 - **Security & Cryptography:** 
   - **Argon2:** Advanced password hashing for brute-force resistance.
   - **jsonwebtoken (JWT):** Stateless session management.
@@ -19,7 +19,7 @@ A secure, production-ready authentication microservice built with **Node.js, Exp
 
 ---
 
-## <img src="https://api.iconify.design/lucide:lock.svg?color=%2310b981&width=20" width="20" height="20" align="absmiddle" /> Security Architecture Highlights
+## 🛠️ Security Architecture Highlights
 
 1. **Input Validation & Sanitization:** All incoming requests are strictly validated at the boundary using Zod schemas before hitting business logic.
 2. **Password Hashing:** Utilizing Argon2 instead of legacy algorithms to protect user credentials against modern hardware cracking.
@@ -29,7 +29,7 @@ A secure, production-ready authentication microservice built with **Node.js, Exp
 
 ---
 
-## <img src="https://api.iconify.design/lucide:terminal.svg?color=%23f59e0b&width=20" width="20" height="20" align="absmiddle" /> Getting Started
+## ⚙️ Getting Started
 
 ### Prerequisites
 - Node.js installed
