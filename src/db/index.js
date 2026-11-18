@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 
-const connection = await mysql.createConnection(process.env.DATABASE_URL);
+// Cria a conexão utilizando a URL do ambiente (apontando para o container 'postgres')
+const client = postgres(process.env.DATABASE_URL);
 
-export const db = drizzle(connection);
+export const db = drizzle(client);
