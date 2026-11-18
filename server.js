@@ -1,35 +1,18 @@
 import express from 'express';
-// Importa o Helmet e CORS
 import helmet from 'helmet';
 import cors from 'cors';
-import { db } from './src/db/index.js';
-import { usuariosTable } from './src/db/schema.js';
-import { eq } from 'drizzle-orm';
-import { criptografarSenha, verificarSenha } from './utils/auth.js';
-// Importa os schemas de validação criados com o Zod
-import { registerSchema, loginSchema } from './src/schemas/auth.schema.js';
-// Importa a função geradora de token e o middleware de segurança JWT
-import { gerarToken } from './src/utils/jwt.js';
-import { authMiddleware } from './src/middlewares/auth.middleware.js';
-// Importa a função Rate Limit para requisições vindas do mesmo IP (Brute Force)
 import { rateLimit } from 'express-rate-limit';
+import logger from './src/config/logger.js';
+import authRoutes from './src/routes/auth.routes.js';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './src/config/swagger.js';
 
+const app = express();
 
-// Regra 1: Limite rígido para rotas de autenticação (Login / Registro)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // Janela de 15 minutos
-  max: 15, // Limite de 15 tentativas por IP dentro da janela
-  message: {
-    erro: "Muitas tentativas de acesso a partir desse IP. Tente novamente após 15 minutos."
-  },
-  standardHeaders: true, // Retorna informações de limite no headers (RateLimit-*)
-  legacyHeaders: false, // Desativa os headers antigos (X-RateLimit-*)
-});
-
-// Regra 2: Limite geral para o restante da API (Proteção contra abuso / DoS leve)
+// General limit for the rest of the API (light abuse / DoS protection)
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Limite de 100 requisições por IP na API geral
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit of 100 requests per IP on the general API
   message: {
     erro: "Muitas requisições feitas a partir desse IP, por favor tente novamente mais tarde."
   },
@@ -37,132 +20,54 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-
-const app = express();
-
-// Aplicando o limitador geral em todas as rotas da API
+// Apply the general limiter to every route in the API
 app.use(globalLimiter);
 
-// Aplicando o Helmet para blindar os headers de segurança HTTP
+// Apply Helmet to harden the HTTP security headers
 app.use(helmet());
 
-// Aplicando o CORS (por padrão libera requisições de de qualquer origem, ideal para desenvolvimento)
-// app.use(cors());
-
-app.use(express.json());
-
-// Rota de Cadastro (POST) protegida contra ataques de força bruta
-app.post('/register', authLimiter, async (req, res) => {
-  try {
-    // 0. O Zod faz a barreira inicial: verifica se o papel preenchido pelo cidadão está no formato correto (nome válido, email real, senha com tamanho mínimo)
-    const validacao = registerSchema.safeParse(req.body);
-
-    if (!validacao.success) {
-      // Se o papel estiver rasurado ou fora das regras, o segurança barra na hora com os detalhes do erro
-      return res.status(400).json({
-        sucesso: false,
-        erros: validacao.error.format(),
-      });
-    }
-
-    // 1. O cidadão entrega um papel com os dados dele (já validados pelo Zod):
-    const { nome, email, senha } = validacao.data;
-
-    // 2. Antes de guardar a senha, passamos ela pelo triturador de segurança (Argon2):
-    // (Para que ninguém, nem mesmo quem cuida do banco, saiba qual é a sua senha real)
-    const senhaHash = await criptografarSenha(senha);
-
-    // 3. O segurança pega o nome, o email e a senha triturada e guarda no fichário (Banco de Dados):
-    await db.insert(usuariosTable).values({
-      nome,
-      email,
-      senha: senhaHash,
-    });
-
-    // 4. O segurança sorri e diz: "Pronto, cadastrado com sucesso!"
-    return res.status(201).json({ sucesso: true, mensagem: 'Usuário cadastrado com sucesso' });
-
-  } catch (error) {
-    // Se der algum problema (ex: o email já foi cadastrado antes), ele avisa o erro.
-    return res.status(400).json({ sucesso: false, erro: 'Erro ao cadastrar' });
-  }
-});
-
-// Rota de Login (POST) protegida contra ataques de força bruta
-app.post('/login', authLimiter, async (req, res) => {
-  try {
-    // 0. O Zod confere se o formato do email e da senha informados na entrada fazem o menor sentido estrutural
-    const validacao = loginSchema.safeParse(req.body);
-
-    if (!validacao.success) {
-      // Se faltar informação ou o email estiver mal formatado, barra imediatamente
-      return res.status(400).json({
-        sucesso: false,
-        erros: validacao.error.format(),
-      });
-    }
-
-    // 1. A pessoa digita o email e a senha na maquininha da catraca:
-    const { email, senha } = validacao.data;
-
-    // 2. O segurança olha no fichário para ver se acha uma ficha com aquele email:
-    const [usuario] = await db.select().from(usuariosTable).where(eq(usuariosTable.email, email));
-    
-    // Se o email não existir no fichário, o segurança bloqueia a entrada:
-    if (!usuario) {
-      return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
-    }
-
-    // 3. Se achou o email, o segurança pega a senha que a pessoa digitou agora 
-    // e confere com a senha triturada que está guardada no fichário:
-    const senhaValida = await verificarSenha(senha, usuario.senha);
-    
-    // Se a senha estiver errada, a catraca continua travada:
-    if (!senhaValida) {
-      return res.status(401).json({ sucesso: false, erro: 'Credenciais inválidas' });
-    }
-
-    // Se a senha estiver certa, geramos o crachá digital (token JWT) para o usuário
-    const token = gerarToken(usuario);
-
-    // 4. A catraca dá o sinal verde e entrega o token de acesso: "Login autorizado!"
-    return res.status(200).json({ 
-      sucesso: true, 
-      mensagem: 'Login autorizado!',
-      token // O cliente guarda esse token para as próximas requisições
-    });
-
-  } catch (error) {
-    return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
-  }
-});
-
-// Rota protegida por Middleware que exige o crachá (token JWT) válido
-app.get('/perfil', authMiddleware, (req, res) => {
-  return res.status(200).json({
-    sucesso: true,
-    mensagem: 'Você acessou uma rota protegida com sucesso!',
-    usuarioLogado: req.usuario // Dados descriptografados diretamente do token pelo middleware
-  });
-});
-
-app.listen(3000, () => {
-  console.log('Servidor rodando na porta 3000 🚀');
-});
-
-// CONFIGURAÇÃO SEGURA DE CORS
-const origensPermitidas = ['http://localhost:3000', 'http://localhost:5173']; // Adicione outras portas de front-end se precisar depois
+// SECURE CORS CONFIGURATION
+const CORS_ERROR_MESSAGE = 'Bloqueado pela política de CORS';
+const origensPermitidas = ['http://localhost:3000', 'http://localhost:5173'];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Permite requisições sem 'origin' (como chamadas via curl, Postman ou aplicativos mobile)
     if (!origin) return callback(null, true);
-
     if (origensPermitidas.indexOf(origin) !== -1) {
-      callback(null, true); // Origem permitida
+      callback(null, true);
     } else {
-      callback(new Error('Bloqueado pela política de CORS')); // Bloqueia origens desconhecidas/maliciosas
+      callback(new Error(CORS_ERROR_MESSAGE));
     }
   },
-  credentials: true, // Permite o envio de cookies/headers de autorização se necessário futuramente
+  credentials: true,
 }));
+
+app.use(express.json());
+
+// Rota da documentação Swagger
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Registra as rotas da aplicação
+app.use(authRoutes);
+
+// Global error handler
+app.use((err, req, res, next) => {
+  if (err.message === CORS_ERROR_MESSAGE) {
+    logger.warn(`Tentativa de acesso de origem bloqueada por CORS: ${req.headers.origin || 'Origem desconhecida'}`);
+    return res.status(403).json({ sucesso: false, erro: 'Origem não permitida' });
+  }
+
+  logger.error(`Erro interno no servidor: ${err.message}`, { stack: err.stack });
+  return res.status(500).json({ sucesso: false, erro: 'Erro interno' });
+});
+
+const PORT = 3000;
+
+// O servidor só sobe se NÃO estivermos rodando no ambiente de testes do Jest
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`🚀 Servidor rodando com sucesso na porta ${PORT}`);
+  });
+}
+
+export default app;
